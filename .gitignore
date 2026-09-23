@@ -1,0 +1,6 @@
+data/
+models/
+catboost_info/
+.venv/
+__pycache__/
+*.pkl

@@ -1,0 +1,35 @@
+{
+  "n_signals": 14000,
+  "n_transactions": 6987663,
+  "escalation_rate": 0.1717857142857143,
+  "date_min": "2025-01-01",
+  "date_max": "2026-12-31",
+  "avg_tx_per_signal": 499.1187857142857,
+  "window_activity": [
+    {
+      "window": 1,
+      "dismissed": 40.646440059115015,
+      "escalated": 42.24664429530201
+    },
+    {
+      "window": 3,
+      "dismissed": 42.54078890333767,
+      "escalated": 44.10735171261487
+    },
+    {
+      "window": 7,
+      "dismissed": 46.56020355356219,
+      "escalated": 48.33305613305613
+    },
+    {
+      "window": 14,
+      "dismissed": 54.795411419699846,
+      "escalated": 56.87276507276507
+    },
+    {
+      "window": 30,
+      "dismissed": 77.90081931867184,
+      "escalated": 81.20956340956342
+    }
+  ]
+}
