@@ -3,12 +3,12 @@ app.py
 ------
 Team Galaxy — WIUT Hackathon 2026, AML Alert Prioritization — EDA website.
 
-Bu ilova faqat `eda_assets/` papkasidagi OLDINDAN HISOBLANGAN grafik va
-statistikalarni ko'rsatadi (xom train/test CSV yoki parquet fayllarni
-o'qimaydi va ularga bog'liq emas) — shuning uchun uni GitHub'ga xavfsiz
-push qilish va Streamlit Community Cloud'ga deploy qilish mumkin.
+This app only displays PRE-COMPUTED assets from `eda_assets/` (charts and
+summary statistics) — it does not read the raw train/test CSV or parquet
+files and has no dependency on them. This makes it safe to push to a
+public GitHub repo and deploy on Streamlit Community Cloud.
 
-Local sinash:
+Local run:
     streamlit run app.py
 """
 
@@ -21,17 +21,17 @@ ASSETS_DIR = Path(__file__).parent / "eda_assets"
 
 st.set_page_config(page_title="Team Galaxy — AML Alert Prioritization EDA", layout="wide")
 
-# ---------------------------------------------------------------- Sarlavha
+# ---------------------------------------------------------------- Header
 st.title("🔍 AML Alert Prioritization — Exploratory Data Analysis")
 st.caption("Team Galaxy · 9C953F22 · WIUT Hackathon 2026 · FinTech / AI in Finance track")
 
 st.markdown(
     """
-**Yondashuvimiz qisqacha:** biz relational (bir alertga ko'plab tranzaksiya
-to'g'ri keladigan) ma'lumotlar bazasini signal_id darajasidagi feature
-jadvaliga aylantirdik, so'ngra LightGBM, CatBoost va XGBoost modellarini
-5-fold cross-validation bilan o'qitib, ularning bashoratlarini blend
-qildik. Quyida ushbu qarorlarga olib kelgan EDA jarayonimiz keltirilgan.
+**Our approach in brief:** we transformed the relational dataset (one alert
+linked to many historical transactions) into a signal-level feature table,
+then trained LightGBM, CatBoost and XGBoost models with 5-fold
+cross-validation and blended their predictions. Below is the EDA process
+that shaped these modeling decisions.
 """
 )
 
@@ -42,33 +42,33 @@ if summary_path.exists():
     with open(summary_path, encoding="utf-8") as f:
         summary = json.load(f)
 
-st.header("📊 Dataset tuzilishi")
+st.header("📊 Dataset Structure")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Jami signal (train)", f"{summary.get('n_signals', '—'):,}")
-col2.metric("Jami tranzaksiya (train)", f"{summary.get('n_transactions', '—'):,}")
+col1.metric("Total signals (train)", f"{summary.get('n_signals', '—'):,}")
+col2.metric("Total transactions (train)", f"{summary.get('n_transactions', '—'):,}")
 col3.metric("Escalation rate", f"{summary.get('escalation_rate', 0):.1%}")
-col4.metric("O'rtacha tx/signal", f"{summary.get('avg_tx_per_signal', 0):.0f}")
+col4.metric("Avg. transactions/signal", f"{summary.get('avg_tx_per_signal', 0):.0f}")
 
 st.markdown(
     f"""
-**Ma'lumotlar sxemasi:**
-- `signals`: `signal_id`, `signal_sanasi`, `eskalatsiya` (target: 0=dismissed, 1=escalated)
-- `transactions` *(relational — bir signalga ko'plab qator)*: `signal_id`,
-  `tranzaksiya_vaqti`, `kirim_chiqim` (kirim/chiqim), `tranzaksiya_turi`
-  (karta/bank_otkazmasi/naqd/xalqaro), `miqdor_indeksi` (standartlashtirilgan)
+**Data schema** *(original column names shown in parentheses)*:
+- `signals`: `signal_id`, signal date (`signal_sanasi`), target (`eskalatsiya`: 0 = dismissed, 1 = escalated)
+- `transactions` *(relational — many rows per signal)*: `signal_id`,
+  transaction timestamp (`tranzaksiya_vaqti`), direction (`kirim_chiqim`: incoming/outgoing),
+  transaction type (`tranzaksiya_turi`: card / bank transfer / cash / international),
+  standardized amount (`miqdor_indeksi`)
 
-Sana oralig'i: **{summary.get('date_min', '—')} — {summary.get('date_max', '—')}**
+Date range: **{summary.get('date_min', '—')} — {summary.get('date_max', '—')}**
 
-*Eslatma: barqarorlik va maxfiylik (NDA) sababli, bu sahifada xom
-tranzaksiya ma'lumotlari emas, faqat jamlangan (agregatlangan)
-statistikalar va grafiklar ko'rsatiladi.*
+*Note: for data-privacy and NDA reasons, this page shows only aggregated
+statistics and charts — never raw transaction records.*
 """
 )
 
 st.divider()
 
 # ---------------------------------------------------------------- Target
-st.header("🎯 Target taqsimoti")
+st.header("🎯 Target Distribution")
 c1, c2 = st.columns([1, 1])
 with c1:
     img = ASSETS_DIR / "target_distribution.png"
@@ -77,44 +77,44 @@ with c1:
 with c2:
     st.markdown(
         f"""
-**Kuzatuv:** target sezilarli darajada **imbalanced** —
-escalation rate atigi **{summary.get('escalation_rate', 0):.1%}**.
+**Observation:** the target is notably **imbalanced** — the escalation
+rate is only **{summary.get('escalation_rate', 0):.1%}**.
 
-Bu bizning modellashtirish qarorlarimizga bevosita ta'sir qildi:
-- `scale_pos_weight` orqali class imbalance'ni kompensatsiya qildik
-- ROC-AUC metrikasini tanladik (imbalanced datada accuracy chalg'ituvchi
-  bo'lishi mumkin)
-- StratifiedKFold ishlatdik — har fold'da target nisbati saqlanishi uchun
+This directly shaped our modeling decisions:
+- We used `scale_pos_weight` to compensate for the class imbalance
+- We chose ROC-AUC as the evaluation metric (accuracy would be misleading
+  on imbalanced data)
+- We used StratifiedKFold so each fold preserves the target ratio
 """
     )
 
 st.divider()
 
 # ---------------------------------------------------------- Direction/Type
-st.header("💳 Kirim/Chiqim va Tranzaksiya turi")
+st.header("💳 Direction and Transaction Type")
 img = ASSETS_DIR / "direction_type_distribution.png"
 if img.exists():
     st.image(str(img), use_container_width=True)
 
 st.markdown(
     """
-**Kuzatuv:** kirim_chiqim va tranzaksiya_turi bo'yicha **marginal
-(oddiy) taqsimotlar escalated va dismissed guruhlar orasida deyarli
-farqlanmaydi** (masalan naqd tranzaksiya ulushi ikkala guruhda ham
-~6-6.5% atrofida). Bu — muhim va nozik topilma: signal oddiy, bitta
-o'lchovli statistikalarda YASHIRINMAGAN.
+**Observation:** the marginal (one-dimensional) distributions of direction
+and transaction type are **almost identical between escalated and
+dismissed alerts** (e.g. the cash-transaction share is around 6–6.5% for
+both groups). This is an important, subtle finding: the signal is not
+hidden in simple, single-variable statistics.
 
-**Bu bizga nima dedi:** modelimiz ko'p-feature interaction va vaqtga
-bog'liq pattern'larni ushlashi kerak — shuning uchun biz vaqt oynalari
-(1/3/7/14/30/90 kun), tranzaksiyalar orasidagi vaqt farqi (burst
-detection) va kategoriyalar aro kombinatsiya feature'larini qo'shdik.
+**What this told us:** our model needs to capture multi-feature
+interactions and time-dependent patterns — which is why we added time
+windows (1/3/7/14/30/90 days), inter-transaction time gaps (burst
+detection), and cross-category combination features.
 """
 )
 
 st.divider()
 
 # --------------------------------------------------------------- Amounts
-st.header("💰 Tranzaksiya miqdori taqsimoti")
+st.header("💰 Transaction Amount Distribution")
 c1, c2 = st.columns([1, 1])
 with c1:
     img = ASSETS_DIR / "amount_distribution.png"
@@ -123,22 +123,23 @@ with c1:
 with c2:
     st.markdown(
         """
-**Kuzatuv:** `miqdor_indeksi` (standartlashtirilgan tranzaksiya hajmi)
-taqsimoti escalated va dismissed guruhlar orasida **juda yaqin**, ozgina
-farq bilan. Bu shuni ko'rsatadiki, oddiy "yirik summalar xavfli" degan
-faraz to'liq to'g'ri emas — xavf ko'proq **xatti-harakat pattern'ida**
-(chastota, vaqt, kombinatsiya), summaning o'zida emas.
+**Observation:** the distribution of `amount_index` (standardized
+transaction size) is **very close** between escalated and dismissed
+groups, with only a small difference. This shows that the simple
+"large amounts are riskier" assumption doesn't fully hold — risk is
+driven more by **behavioral patterns** (frequency, timing, combinations)
+than by the amount itself.
 
-Shu sababdan biz "round-number" (davra summalar — structuring belgisi)
-va "recent trend" (oxirgi tranzaksiyalarning umumiy o'rtachadan chetga
-chiqishi) feature'larini qo'shdik.
+This is why we added "round-number" (structuring indicator) and "recent
+trend" (how recent transactions deviate from the overall average)
+features.
 """
     )
 
 st.divider()
 
 # --------------------------------------------------------------- Windows
-st.header("⏱️ Signal oldidan faollik (vaqt oynalari)")
+st.header("⏱️ Pre-signal Activity (Time Windows)")
 c1, c2 = st.columns([1, 1])
 with c1:
     img = ASSETS_DIR / "window_activity.png"
@@ -147,15 +148,16 @@ with c1:
 with c2:
     st.markdown(
         """
-**Kuzatuv:** signal sanasidan oldingi turli vaqt oynalarida (1/3/7/14/30
-kun) hisoblangan tranzaksiya faolligi, **escalated guruhda barcha
-oynalarda biroz yuqoriroq**. Masalan 30 kunlik oynada dismissed guruh
-o'rtacha ~78 ta, escalated guruh esa ~81 ta tranzaksiyaga ega.
+**Observation:** transaction activity computed over several time windows
+before the signal date (1/3/7/14/30 days) is **consistently higher for
+escalated alerts** across every window. For example, in the 30-day
+window, dismissed alerts average ~78 transactions versus ~81 for
+escalated alerts.
 
-Bu — biz topgan **eng izchil (consistent) signal**: farq kichik, lekin
-barcha oynalarda bir tomonlama (escalated > dismissed). Shuning uchun
-vaqt-oynali agregatlar bizning modelimizdagi eng muhim feature guruhlaridan
-biriga aylandi.
+This is the **most consistent signal** we found: the gap is small, but
+it points the same direction (escalated > dismissed) across every
+window. This made time-windowed aggregates one of the most important
+feature groups in our model.
 """
     )
 
@@ -164,41 +166,40 @@ st.divider()
 # --------------------------------------------------------- Feature import.
 img = ASSETS_DIR / "feature_importance.png"
 if img.exists():
-    st.header("🧠 Model qaysi feature'larga eng ko'p tayanadi")
+    st.header("🧠 Which Features the Model Relies on Most")
     st.image(str(img), use_container_width=True)
     st.markdown(
         """
-LightGBM modelimizning feature importance tahlili shuni ko'rsatdiki, eng
-yuqori o'rinlarda nafaqat oddiy statistikalar (`tx_min`, `tx_max`), balki
-EDA orqali maqsadli qo'shilgan feature'lar ham bor — masalan
-`avg_dist_to_round` (round-number pattern) va `recent_5_trend` (so'nggi
-tranzaksiyalar trendi). Bu bizning EDA-asoslangan feature engineering
-yondashuvimizni tasdiqlaydi.
+The feature importance analysis of our LightGBM model shows that the
+top-ranked features include not only basic statistics (`tx_min`,
+`tx_max`) but also features motivated directly by our EDA — such as
+`avg_dist_to_round` (round-number pattern) and `recent_5_trend` (recent
+transaction trend). This confirms that our EDA-driven feature
+engineering approach paid off.
 """
     )
     st.divider()
 
-# --------------------------------------------------------------- Xulosa
-st.header("📝 Xulosa — eng muhim topilmalar")
+# --------------------------------------------------------------- Summary
+st.header("📝 Conclusion — Key Findings")
 st.markdown(
     f"""
-1. **Target sezilarli imbalanced** ({summary.get('escalation_rate', 0):.1%}
-   escalation rate) — modellashtirish va metrika tanlovimizga bevosita
-   ta'sir qildi.
-2. **Oddiy, bir o'lchovli statistikalar (marginal distributions) bo'yicha
-   escalated va dismissed guruhlar deyarli farqlanmaydi** — bu signal
-   murakkab, ko'p-feature va vaqtga bog'liq ekanligini ko'rsatdi.
-3. **Signal oldidan faollik (barcha vaqt oynalarida) eng izchil signal** —
-   escalated guruhda tizimli ravishda yuqoriroq.
-4. Ushbu topilmalar asosida biz **76 ta feature** (asosiy statistikalar,
-   kirim/chiqim va tur kombinatsiyalari, vaqt oynalari, burst detection,
-   round-number pattern, recent trend) yaratdik va **LightGBM + CatBoost +
-   XGBoost ensemble** modelini qo'lladik.
+1. **The target is notably imbalanced** ({summary.get('escalation_rate', 0):.1%}
+   escalation rate) — this directly shaped our modeling and metric choices.
+2. **Simple, one-dimensional statistics (marginal distributions) barely
+   differ between escalated and dismissed groups** — showing the signal
+   is complex, multi-feature, and time-dependent.
+3. **Pre-signal activity (across all time windows) is our most consistent
+   signal** — systematically higher for escalated alerts.
+4. Based on these findings, we engineered **76 features** (base
+   statistics, direction/type combinations, time windows, burst
+   detection, round-number pattern, recent trend) and applied a
+   **LightGBM + CatBoost + XGBoost ensemble**.
 
-Loyihaning to'liq, qayta ishga tushirilishi mumkin bo'lgan kodi
-(`features.py`, `train.py`, `predict.py`) va Jupyter notebook GitHub
-repozitoriyamizda mavjud.
+The full, reproducible pipeline code (`features.py`, `train.py`,
+`predict.py`) and Jupyter notebook are available in our GitHub
+repository.
 """
 )
 
-st.caption("Team Galaxy · WIUT Hackathon 2026 · Faqat agregatlangan statistikalar ko'rsatilgan, xom ma'lumot emas (NDA).")
+st.caption("Team Galaxy · WIUT Hackathon 2026 · Only aggregated statistics are shown, no raw data (NDA).")
